@@ -21,7 +21,35 @@ jobs:
         with:
           python-version: 3.14
       - run: pip install zensical
-      - run: zensical build --clean 
+      
+      # 修复核心：添加工作目录切换、配置文件检查、显式指定配置文件路径
+      - name: Build documentation with zensical
+        run: |
+          # 切换到 GitHub 工作区根目录（项目根目录）
+          cd "$GITHUB_WORKSPACE"
+          echo "当前工作目录: $(pwd)"
+          
+          # 定义配置文件路径并检查是否存在
+          CONFIG_FILE="$GITHUB_WORKSPACE/zensical.toml"
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "❌ 错误：配置文件 $CONFIG_FILE 不存在！"
+            echo "📋 当前目录文件列表："
+            ls -la "$GITHUB_WORKSPACE"
+            exit 1
+          fi
+          
+          # 开启完整回溯日志，显式指定配置文件执行构建
+          RUST_BACKTRACE=full zensical build --config-file "$CONFIG_FILE" --clean
+        shell: /usr/bin/bash -e {0}
+        env:
+          # 保留原有环境变量，确保 Python 路径正确
+          pythonLocation: /opt/hostedtoolcache/Python/3.14.3/x64
+          PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.14.3/x64/lib/pkgconfig
+          Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.3/x64
+          Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.3/x64
+          Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.3/x64
+          LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.14.3/x64/lib
+      
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
