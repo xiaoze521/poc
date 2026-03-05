@@ -1,12 +1,16 @@
 name: Documentation
+
 on:
   push:
     branches:
+      - master
       - main
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 jobs:
   deploy:
     environment:
@@ -14,45 +18,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/configure-pages@v5
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Fix permissions and encoding
-        run: |
-          chmod -R 777 $GITHUB_WORKSPACE/*
-          export LC_ALL=zh_CN.UTF-8
-          export LANG=zh_CN.UTF-8
-          export PYTHONIOENCODING=utf-8
-
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10.19"
-
-      - name: Install stable Zensical
-        run: |
-          pip uninstall -y zensical || true
-          pip install zensical==0.0.8
-
-      - name: Debug - List all files
-        run: |
-          echo "=== 仓库根目录文件 ==="
-          ls -la $GITHUB_WORKSPACE
-          echo "=== docs 目录内容 ==="
-          ls -la $GITHUB_WORKSPACE/docs/ || echo "docs 目录不存在"
-          echo "=== 配置文件内容 ==="
-          cat $GITHUB_WORKSPACE/zensical.toml || echo "zensical.toml 不存在"
-
-      # 核心修正：--config → --config-file
-      - name: Build docs with correct parameter
-        run: |
-          cd $GITHUB_WORKSPACE
-          RUST_BACKTRACE=full zensical build --config-file $GITHUB_WORKSPACE/zensical.toml --clean
-
+          python-version: 3.x   # Zensical 需 Python 3.10+，3.x 在 GitHub 当前 runner 上满足要求
+      - run: pip install zensical
+      - run: zensical build --clean
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: $GITHUB_WORKSPACE/site
-
+          path: site
       - uses: actions/deploy-pages@v4
         id: deployment
