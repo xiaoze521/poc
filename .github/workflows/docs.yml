@@ -2,7 +2,6 @@ name: Documentation
 on:
   push:
     branches:
-      - master
       - main
 permissions:
   contents: read
@@ -15,15 +14,53 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/configure-pages@v5
+      # 1. 完整拉取仓库（避免文件缺失）
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # 2. 修复目录权限+中文编码（Linux 必备）
+      - name: Fix permissions and encoding
+        run: |
+          chmod -R 777 $GITHUB_WORKSPACE/*  # 最大化权限，避免读取失败
+          export LC_ALL=zh_CN.UTF-8
+          export LANG=zh_CN.UTF-8
+          export PYTHONIOENCODING=utf-8
+
+      # 3. 降级到兼容的 Python 版本（核心修复）
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
-      - run: pip install zensical
-      - run: zensical build --clean
+          python-version: "3.10"  # 放弃 3.14，用稳定版
+
+      # 4. 安装旧版 Zensical（避开 bug）
+      - name: Install stable Zensical
+        run: |
+          pip uninstall -y zensical || true
+          pip install zensical==0.0.8  # 经测试，此版本兼容中文路径
+
+      # 5. 调试：打印所有文件（确认 Actions 环境能看到文件）
+      - name: Debug - List all files
+        run: |
+          echo "=== 仓库根目录文件 ==="
+          ls -la $GITHUB_WORKSPACE
+          echo "=== docs 目录内容 ==="
+          ls -la $GITHUB_WORKSPACE/docs/ || echo "docs 目录不存在"
+          echo "=== 配置文件内容 ==="
+          cat $GITHUB_WORKSPACE/zensical.toml || echo "zensical.toml 不存在"
+
+      # 6. 强制用绝对路径构建（核心修复路径解析）
+      - name: Build docs with absolute path
+        run: |
+          cd $GITHUB_WORKSPACE
+          # 显式指定配置文件绝对路径，开启完整回溯日志
+          RUST_BACKTRACE=full zensical build --config $GITHUB_WORKSPACE/zensical.toml --clean
+
+      # 7. 上传构建产物（路径也用绝对路径）
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: $GITHUB_WORKSPACE/site
+
+      # 8. 部署到 Pages
       - uses: actions/deploy-pages@v4
         id: deployment
